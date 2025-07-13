@@ -25,5 +25,5 @@ if __name__ == "__main__":
     # print(S)
     random.shuffle(S)
     # print(S)
-    print("Your Password is:")
+    print("Your Password Are:")
     print("".join(S[0:plen]))
