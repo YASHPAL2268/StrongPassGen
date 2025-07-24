@@ -65,6 +65,9 @@ import string
 import random
 import pyperclip
 
+# Global password history list
+history = []
+
 # Check password strength
 def check_strength(pw):
     score = 0
@@ -79,6 +82,31 @@ def check_strength(pw):
         return "👍 Moderate"
     else:
         return "⚠️ Weak"
+
+# Estimate time to crack the password
+def estimate_crack_time(password):
+    charset = 0
+    if any(c.islower() for c in password): charset += 26
+    if any(c.isupper() for c in password): charset += 26
+    if any(c.isdigit() for c in password): charset += 10
+    if any(c in string.punctuation for c in password): charset += len(string.punctuation)
+
+    combinations = charset ** len(password)
+    guesses_per_second = 1e9  # 1 billion guesses/second
+    seconds = combinations / guesses_per_second
+    return human_readable_time(seconds)
+
+def human_readable_time(seconds):
+    if seconds < 60:
+        return f"{seconds:.2f} seconds"
+    elif seconds < 3600:
+        return f"{seconds/60:.2f} minutes"
+    elif seconds < 86400:
+        return f"{seconds/3600:.2f} hours"
+    elif seconds < 31536000:
+        return f"{seconds/86400:.2f} days"
+    else:
+        return f"{seconds/31536000:.2f} years"
 
 # Generate Password
 def generate_password():
@@ -99,19 +127,57 @@ def generate_password():
         return
 
     password = ''.join(random.choices(S, k=length))
+    password_entry.config(show="" if show_password_var.get() else "*")
     password_entry.delete(0, tk.END)
     password_entry.insert(0, password)
 
+    # Update strength and crack time
     strength = check_strength(password)
     strength_label.config(text=f"Password Strength: {strength}")
 
+    crack_time = estimate_crack_time(password)
+    crack_time_label.config(text=f"⏱️ Time to Crack: {crack_time}")
+
+    # Copy to clipboard
     pyperclip.copy(password)
     copied_label.config(text="📋 Copied to clipboard!")
+
+    # Update history
+    history.insert(0, password)
+    if len(history) > 5:
+        history.pop()
+    update_history_box()
+
+# Show/Hide Password
+def toggle_password():
+    if show_password_var.get():
+        password_entry.config(show="")
+    else:
+        password_entry.config(show="*")
+
+# Save to file
+def save_password():
+    pw = password_entry.get()
+    if not pw:
+        messagebox.showerror("Error", "No password to save.")
+        return
+
+    with open("saved_passwords.txt", "a") as f:
+        f.write(pw + "\n")
+    messagebox.showinfo("Saved", "Password saved to saved_passwords.txt")
+
+# Update history display
+def update_history_box():
+    history_text.config(state="normal")
+    history_text.delete("1.0", tk.END)
+    for pw in history:
+        history_text.insert(tk.END, pw + "\n")
+    history_text.config(state="disabled")
 
 # Setup window
 win = tk.Tk()
 win.title("🔐 Password Generator")
-win.geometry("400x400")
+win.geometry("450x600")
 win.resizable(False, False)
 
 # Title
@@ -133,23 +199,35 @@ tk.Checkbutton(frame, text="Symbols (!@#)", variable=var_symbols).grid(row=3, co
 
 # Password Length
 tk.Label(win, text="🔢 Select Password Length:").pack(pady=(10, 0))
-length_slider = tk.Scale(win, from_=4, to=32, orient="horizontal", length=250)
+length_slider = tk.Scale(win, from_=4, to=32, orient="horizontal", length=300)
 length_slider.set(12)
 length_slider.pack()
 
 # Password Display
 tk.Label(win, text="🔑 Generated Password:").pack(pady=(10, 0))
-password_entry = tk.Entry(win, font=("Courier", 12), justify="center", width=30)
+password_entry = tk.Entry(win, font=("Courier", 12), justify="center", width=30, show="*")
 password_entry.pack(pady=5)
 
-# Strength and copy feedback
+# Show/Hide toggle
+show_password_var = tk.BooleanVar()
+tk.Checkbutton(win, text="👁️ Show Password", variable=show_password_var, command=toggle_password).pack()
+
+# Strength and copied message
 strength_label = tk.Label(win, text="", font=("Arial", 10))
 strength_label.pack()
+crack_time_label = tk.Label(win, text="", font=("Arial", 10), fg="blue")
+crack_time_label.pack()
 copied_label = tk.Label(win, text="", font=("Arial", 10), fg="green")
 copied_label.pack()
 
 # Buttons
-tk.Button(win, text="Generate Password", command=generate_password, bg="green", fg="white").pack(pady=15)
+tk.Button(win, text="Generate Password", command=generate_password, bg="green", fg="white").pack(pady=10)
+tk.Button(win, text="💾 Save Password", command=save_password, bg="blue", fg="white").pack(pady=5)
+
+# Password History
+tk.Label(win, text="🕓 Password History (Last 5):").pack(pady=(15, 0))
+history_text = tk.Text(win, height=5, width=40, state="disabled")
+history_text.pack(pady=(0, 10))
 
 # Run the GUI
 win.mainloop()
